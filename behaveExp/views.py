@@ -1,10 +1,10 @@
-import json
+import datetime
 from random import random
 
 from flask import jsonify, request
 
 from behaveExp import app, db
-from behaveExp.models import Stock, User
+from behaveExp.models import Stock, User, Time
 
 
 def random_update(value, p):
@@ -75,12 +75,6 @@ def get_user_info():
     current_date = max([stock.date for stock in all_stock])
     current_stock = Stock.query.filter_by(date=current_date).all()
     user_value = current_user.value
-    # user_value = (
-    #         current_stock[0].value * current_user.n_A +
-    #         current_stock[1].value * current_user.n_B +
-    #         current_stock[2].value * current_user.n_C +
-    #         current_user.remain
-    # )
 
     ratio_A = current_stock[0].value * current_user.n_A / user_value
     ratio_B = current_stock[1].value * current_user.n_B / user_value
@@ -101,17 +95,17 @@ def get_user_info():
 @app.route('/get_figure', methods=['GET'])
 def get_figure():
     all_stock = Stock.query.all()
-    days = ["Day" + str(i) for i in range(int(len(all_stock)/3))]
+    days = ["Day" + str(i) for i in range(int(len(all_stock) / 3))]
     i = 0
     data_A = []
     data_B = []
     data_C = []
     while i < len(all_stock):
-        data_A.append(all_stock[i].value)
+        data_A.append(round(all_stock[i].value, 2))
         i = i + 1
-        data_B.append(all_stock[i].value)
+        data_B.append(round(all_stock[i].value, 2))
         i = i + 1
-        data_C.append(all_stock[i].value)
+        data_C.append(round(all_stock[i].value, 2))
         i = i + 1
 
     option = {
@@ -174,7 +168,7 @@ def get_figure():
 def get_reward():
     current_date = max([user.date for user in User.query.all()])
     current_user = User.query.filter_by(date=current_date).first()
-    last_user = User.query.filter_by(date=current_date-1).first()
+    last_user = User.query.filter_by(date=current_date - 1).first()
 
     total_value = current_user.value
     current_reward = current_user.value - last_user.value
@@ -189,5 +183,71 @@ def get_reward():
     )
 
 
+@app.route('/market_info', methods=['GET'])
+def market_info():
+    all_stock = Stock.query.all()
+    current_date = max([stock.date for stock in all_stock])
+    current_stock = Stock.query.filter_by(date=current_date).all()
+    last_stock = Stock.query.filter_by(date=current_date - 1).all()
+    last_2 = Stock.query.filter_by(date=current_date - 2).all()
+
+    current_value = sum([stock.value for stock in current_stock])
+    last_value = sum([stock.value for stock in last_stock])
+
+    if last_2:
+        last_2_value = sum([stock.value for stock in last_2])
+    else:
+        last_2_value = last_value
+
+    current_index = round(current_value / last_value * 1000, 2)
+    last_index = round(last_value/last_2_value * 1000, 2)
+
+    value_diff = round(current_index - last_index, 2)
+
+    if value_diff < 0:
+        value_diff = "下降" + str(-value_diff) + "点"
+    else:
+        value_diff = "上升" + str(value_diff) + "点"
+
+    return jsonify(
+        {
+            "current_index": current_index,
+            "value_diff": value_diff
+        }
+    )
 
 
+@app.route('/post_time', methods=['POST'])
+def post_time():
+    current_time = Time.query.first()
+    if not current_time:
+        db.session.add(Time())
+        db.session.commit()
+    return 'ok'
+
+
+@app.route('/get_time', methods=['GET'])
+def get_time():
+    current_time = datetime.datetime.now()
+
+    if Time.query.first():
+        start_time = Time.query.first().time
+    else:
+        return jsonify(
+            {
+                'sec': 0,
+                'mint': 0
+            }
+        )
+
+    last_second = (current_time - start_time).seconds
+
+    sec = last_second % 60
+    mint = int(last_second / 60)
+
+    return jsonify(
+        {
+            'sec': sec,
+            'mint': mint
+        }
+    )

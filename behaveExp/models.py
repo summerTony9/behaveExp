@@ -17,3 +17,8 @@ class User(db.Model):
     n_C = db.Column(db.Float)
     remain = db.Column(db.Float)
     date = db.Column(db.Integer)
+
+
+class Time(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    time = db.Column(db.DateTime, default=datetime.now, index=True)
