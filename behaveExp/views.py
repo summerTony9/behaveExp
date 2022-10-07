@@ -1,7 +1,7 @@
 import datetime
 from random import random
 
-from flask import jsonify, request
+from flask import jsonify, request, render_template
 
 from behaveExp import app, db
 from behaveExp.models import Stock, User, Time
@@ -14,6 +14,11 @@ def random_update(value, p):
     else:
         ret = value * 0.95
     return ret
+
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 
 @app.route('/get_stock_info', methods=['POST'])
@@ -200,7 +205,7 @@ def market_info():
         last_2_value = last_value
 
     current_index = round(current_value / last_value * 1000, 2)
-    last_index = round(last_value/last_2_value * 1000, 2)
+    last_index = round(last_value / last_2_value * 1000, 2)
 
     value_diff = round(current_index - last_index, 2)
 
