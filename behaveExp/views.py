@@ -182,10 +182,11 @@ def get_stock_info():
 
 @app.route('/get_user_info', methods=['GET', 'POST'])
 def get_user_info():
-    time.sleep(0.1)
     current_date = int(request.args.get('nround'))
     user_name = str(request.args.get('userName'))
     current_user = User.query.filter(User.user_name == user_name).first()
+    while not current_user:
+        current_user = User.query.filter(User.user_name == user_name).first()
     user_market = current_user.first_round_market
 
     user_stock = Stock.query.filter(
@@ -195,11 +196,24 @@ def get_user_info():
     ).order_by(
         Stock.name
     ).all()
+    while not user_stock:
+        user_stock = Stock.query.filter(
+            Stock.user_id == current_user.id,
+            Stock.date == current_date - 1,
+            Stock.market == user_market
+        ).order_by(
+            Stock.name
+        ).all()
 
     user_value = UserValue.query.filter(
         UserValue.user_id == current_user.id,
         UserValue.date == current_date - 1
     ).first()
+    while not user_value:
+        user_value = UserValue.query.filter(
+            UserValue.user_id == current_user.id,
+            UserValue.date == current_date - 1
+        ).first()
 
     user_total_value = user_value.value
     ratio_list = []
@@ -210,7 +224,6 @@ def get_user_info():
         ratio_list.append(
             ratio_i
         )
-    print(ratio_list)
 
     data = {
         'stock_name': "A",
@@ -226,7 +239,6 @@ def get_user_info():
 
 @app.route('/get_figure', methods=['GET'])
 def get_figure():
-    time.sleep(0.1)
     user_name = str(request.args.get('id'))
 
     current_user = User.query.filter_by(user_name=user_name).first()
@@ -390,7 +402,6 @@ def get_figure():
 
 @app.route('/get_reward', methods=['GET'])
 def get_reward():
-    time.sleep(0.1)
     user_name = str(request.args.get('id'))
     nround = int(request.args.get('nround'))
 
@@ -419,7 +430,6 @@ def get_reward():
 
 @app.route('/market_info', methods=['GET'])
 def market_info():
-    time.sleep(0.1)
     current_date = int(request.args.get('nround'))
     user_name = str(request.args.get('id'))
     current_user = User.query.filter(User.user_name == user_name).first()
@@ -430,6 +440,11 @@ def market_info():
         Stock.market == market,
         Stock.user_id == current_user.id
     )
+    while len(stocks.all()) != current_date * 3 + 3:
+        stocks = Stock.query.filter(
+            Stock.market == market,
+            Stock.user_id == current_user.id
+        )
 
     ori_stock = stocks.filter(
         Stock.date == 0
@@ -469,11 +484,11 @@ def market_info():
 
 @app.route('/post_time', methods=['POST'])
 def post_time():
-    time.sleep(0.1)
     data = request.get_json()
     user_name = data["userName"]
     current_user = User.query.filter_by(user_name=user_name).first()
-
+    while not current_user:
+        current_user = User.query.filter_by(user_name=user_name).first()
     current_time = Time.query.filter(
         Time.user_id == current_user.id
     ).first()
@@ -486,11 +501,11 @@ def post_time():
 
 @app.route('/get_time', methods=['GET', 'POST'])
 def get_time():
-    time.sleep(0.1)
     current_time = datetime.datetime.now()
     user_name = request.args.get("userName")
     current_user = User.query.filter_by(user_name=user_name).first()
-
+    while not current_user:
+        current_user = User.query.filter_by(user_name=user_name).first()
     start_time = Time.query.filter(
         Time.user_id == current_user.id
     ).first()
