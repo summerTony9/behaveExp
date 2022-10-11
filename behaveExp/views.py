@@ -5,7 +5,7 @@ from random import random, sample
 from flask import jsonify, request, render_template
 
 from behaveExp import app, db
-from behaveExp.models import Stock, User, Time, UserStockDefault, UserValue
+from behaveExp.models import Stock, User, Time, UserStockDefault, UserValue, CalculateInfo
 
 
 def random_update(value, p):
@@ -38,66 +38,73 @@ def login():
     user = User(
         user_name=userName,
         first_round_market=random_market(),
-        second_round_market=random_market()
+        second_round_market=random_market(),
+        third_round_market=random_market(),
+        fourth_round_market=random_market()
     )
     db.session.add(user)
     db.session.commit()
 
     current_user = User.query.filter_by(user_name=userName).first()
     user_id = current_user.id
-    db.session.add(
-        UserValue(
-            user_id=user_id,
-            date=0,
-            value=1000,
-            remain=1000
-        )
-    )
-
-    p_rise_A = sample([0.45, 0.5, 0.55], 3)
-    p_rise_B = sample([0.45, 0.5, 0.55], 3)
-    stock_names = ["A", "B", "C"]
-
-    for i in range(3):
+    for stage in range(1, 5):
         db.session.add(
-            UserStockDefault(
-                user_id=user_id,
-                market="A",
-                name=stock_names[i],
-                p_rise=p_rise_A[i]
-            )
-        )
-
-        db.session.add(
-            UserStockDefault(
-                user_id=user_id,
-                market="B",
-                name=stock_names[i],
-                p_rise=p_rise_B[i]
-            )
-        )
-
-        db.session.add(
-            Stock(
+            UserValue(
                 user_id=user_id,
                 date=0,
-                name=stock_names[i],
-                value=100,
-                market="A",
-                hold_num=0
+                value=1000,
+                remain=1000,
+                stage=stage
             )
         )
+        p_rise_A = sample([0.45, 0.5, 0.55], 3)
+        p_rise_B = sample([0.45, 0.5, 0.55], 3)
+        stock_names = ["A", "B", "C"]
 
-        db.session.add(
-            Stock(
-                user_id=user_id,
-                date=0,
-                name=stock_names[i],
-                value=100,
-                market="B",
-                hold_num=0
+        for i in range(3):
+            db.session.add(
+                UserStockDefault(
+                    user_id=user_id,
+                    market="A",
+                    name=stock_names[i],
+                    p_rise=p_rise_A[i],
+                    stage=stage
+                )
             )
-        )
+
+            db.session.add(
+                UserStockDefault(
+                    user_id=user_id,
+                    market="B",
+                    name=stock_names[i],
+                    p_rise=p_rise_B[i],
+                    stage=stage
+                )
+            )
+
+            db.session.add(
+                Stock(
+                    user_id=user_id,
+                    date=0,
+                    name=stock_names[i],
+                    value=100,
+                    market="A",
+                    hold_num=0,
+                    stage=stage
+                )
+            )
+
+            db.session.add(
+                Stock(
+                    user_id=user_id,
+                    date=0,
+                    name=stock_names[i],
+                    value=100,
+                    market="B",
+                    hold_num=0,
+                    stage=stage
+                )
+            )
 
     db.session.commit()
     return 'done'
@@ -113,13 +120,16 @@ def get_stock_info():
     ratio_2 = data['ratio_2']
     ratio_3 = data['ratio_3']
     remain = data['remain']
+    stage = int(data['stage'])
 
     current_user = User.query.filter_by(user_name=user_name).first()
     current_user_value = UserValue.query.filter(
         UserValue.user_id == current_user.id,
+        UserValue.stage == stage,
         UserValue.date == nround - 1).first()
     current_stock = Stock.query.filter(
         Stock.user_id == current_user.id,
+        Stock.stage == stage,
         Stock.date == nround - 1
     ).order_by(
         Stock.market,
@@ -127,13 +137,22 @@ def get_stock_info():
     ).all()
 
     default_p = UserStockDefault.query.filter(
-        UserStockDefault.user_id == current_user.id
+        UserStockDefault.user_id == current_user.id,
+        UserStockDefault.stage == stage
     ).order_by(
         UserStockDefault.market,
         UserStockDefault.name
     )
 
-    market = current_user.first_round_market
+    if stage == 1:
+        market = current_user.first_round_market
+    elif stage == 2:
+        market = current_user.second_round_market
+    elif stage == 3:
+        market = current_user.third_round_market
+    else:
+        market = current_user.fourth_round_market
+
     if market == "A":
         new_hold = [
             (current_user_value.value * ratio / 100) / current_stock[0].value,
@@ -162,7 +181,8 @@ def get_stock_info():
                 name=stock.name,
                 value=new_value,
                 market=stock.market,
-                hold_num=hold_num
+                hold_num=hold_num,
+                stage=stage
             )
         )
         new_all_value = new_all_value + hold_num * new_value
@@ -172,7 +192,8 @@ def get_stock_info():
             user_id=current_user.id,
             date=nround,
             value=new_all_value + new_remain,
-            remain=new_remain
+            remain=new_remain,
+            stage=stage
         )
     )
 
@@ -184,15 +205,24 @@ def get_stock_info():
 def get_user_info():
     current_date = int(request.args.get('nround'))
     user_name = str(request.args.get('userName'))
+    stage = int(request.args.get('stage'))
     current_user = User.query.filter(User.user_name == user_name).first()
     while not current_user:
         current_user = User.query.filter(User.user_name == user_name).first()
-    user_market = current_user.first_round_market
+    if stage == 1:
+        user_market = current_user.first_round_market
+    elif stage == 2:
+        user_market = current_user.second_round_market
+    elif stage == 3:
+        user_market = current_user.third_round_market
+    else:
+        user_market = current_user.fourth_round_market
 
     user_stock = Stock.query.filter(
         Stock.user_id == current_user.id,
         Stock.date == current_date - 1,
-        Stock.market == user_market
+        Stock.market == user_market,
+        Stock.stage == stage
     ).order_by(
         Stock.name
     ).all()
@@ -200,19 +230,22 @@ def get_user_info():
         user_stock = Stock.query.filter(
             Stock.user_id == current_user.id,
             Stock.date == current_date - 1,
-            Stock.market == user_market
+            Stock.market == user_market,
+            Stock.stage == stage
         ).order_by(
             Stock.name
         ).all()
 
     user_value = UserValue.query.filter(
         UserValue.user_id == current_user.id,
-        UserValue.date == current_date - 1
+        UserValue.date == current_date - 1,
+        UserValue.stage == stage
     ).first()
     while not user_value:
         user_value = UserValue.query.filter(
             UserValue.user_id == current_user.id,
-            UserValue.date == current_date - 1
+            UserValue.date == current_date - 1,
+            UserValue.stage == stage
         ).first()
 
     user_total_value = user_value.value
@@ -240,10 +273,12 @@ def get_user_info():
 @app.route('/get_figure', methods=['GET'])
 def get_figure():
     user_name = str(request.args.get('id'))
+    stage = int(request.args.get('stage'))
 
     current_user = User.query.filter_by(user_name=user_name).first()
     stocks = Stock.query.filter(
-        Stock.user_id == current_user.id
+        Stock.user_id == current_user.id,
+        Stock.stage == stage
     )
 
     stock_A = stocks.filter(
@@ -404,15 +439,18 @@ def get_figure():
 def get_reward():
     user_name = str(request.args.get('id'))
     nround = int(request.args.get('nround'))
+    stage = int(request.args.get('stage'))
 
     current_user = User.query.filter_by(user_name=user_name).first()
     current_user_value = UserValue.query.filter(
         UserValue.user_id == current_user.id,
-        UserValue.date == nround
+        UserValue.date == nround,
+        UserValue.stage == stage
     ).first()
     last_user_value = UserValue.query.filter(
         UserValue.user_id == current_user.id,
-        UserValue.date == nround - 1
+        UserValue.date == nround - 1,
+        UserValue.stage == stage
     ).first()
 
     total_value = current_user_value.value
@@ -432,18 +470,21 @@ def get_reward():
 def market_info():
     current_date = int(request.args.get('nround'))
     user_name = str(request.args.get('id'))
+    stage = int(request.args.get('stage'))
     current_user = User.query.filter(User.user_name == user_name).first()
 
     market = random_market()
 
     stocks = Stock.query.filter(
         Stock.market == market,
-        Stock.user_id == current_user.id
+        Stock.user_id == current_user.id,
+        Stock.stage == stage
     )
     while len(stocks.all()) != current_date * 3 + 3:
         stocks = Stock.query.filter(
             Stock.market == market,
-            Stock.user_id == current_user.id
+            Stock.user_id == current_user.id,
+            Stock.stage == stage
         )
 
     ori_stock = stocks.filter(
@@ -477,7 +518,8 @@ def market_info():
     return jsonify(
         {
             "current_index": round(current_index, 2),
-            "value_diff": value_diff
+            "value_diff": value_diff,
+            "market": market
         }
     )
 
@@ -486,15 +528,17 @@ def market_info():
 def post_time():
     data = request.get_json()
     user_name = data["userName"]
+    stage = int(data["stage"])
     current_user = User.query.filter_by(user_name=user_name).first()
     while not current_user:
         current_user = User.query.filter_by(user_name=user_name).first()
     current_time = Time.query.filter(
-        Time.user_id == current_user.id
+        Time.user_id == current_user.id,
+        Time.stage == stage
     ).first()
 
     if not current_time:
-        db.session.add(Time(user_id=current_user.id))
+        db.session.add(Time(user_id=current_user.id, stage=stage))
         db.session.commit()
     return 'ok'
 
@@ -503,18 +547,31 @@ def post_time():
 def get_time():
     current_time = datetime.datetime.now()
     user_name = request.args.get("userName")
+    stage = int(request.args.get("stage"))
     current_user = User.query.filter_by(user_name=user_name).first()
     while not current_user:
         current_user = User.query.filter_by(user_name=user_name).first()
+
+    if stage == 1:
+        user_market = current_user.first_round_market
+    elif stage == 2:
+        user_market = current_user.second_round_market
+    elif stage == 3:
+        user_market = current_user.third_round_market
+    else:
+        user_market = current_user.fourth_round_market
+
     start_time = Time.query.filter(
-        Time.user_id == current_user.id
+        Time.user_id == current_user.id,
+        Time.stage == stage
     ).first()
 
     if not start_time:
         return jsonify(
             {
                 'sec': 0,
-                'mint': 0
+                'mint': 0,
+                'market': user_market
             }
         )
     else:
@@ -528,6 +585,57 @@ def get_time():
     return jsonify(
         {
             'sec': sec,
-            'mint': mint
+            'mint': mint,
+            'market': user_market
         }
     )
+
+
+@app.route('/post_cal', methods=['POST'])
+def post_cal():
+    data = request.get_json()
+    data = data["data"]
+    user_name = data["userName"]
+    stage = data["stage"]
+
+    current_user = User.query.filter_by(user_name=user_name).first()
+    for i in range(len(data["num_1_list"])):
+        db.session.add(
+            CalculateInfo(
+                user_id=current_user.id,
+                num_1=data["num_1_list"][i],
+                num_2=data["num_2_list"][i],
+                ans=data["ans_list"][i],
+                stage=stage,
+                correct=data["correct_n"]
+            )
+        )
+    db.session.commit()
+    return 'ok'
+
+
+@app.route('/get_total_reward', methods=['GET', "POST"])
+def get_total_reward():
+    user_name = request.args.get("userName")
+    stage = int(request.args.get("stage"))
+
+    current_user = User.query.filter_by(user_name=user_name).first()
+    user_value = UserValue.query.filter(
+        UserValue.user_id == current_user.id,
+        UserValue.stage == stage
+    ).order_by(
+        UserValue.date.desc()
+    ).first()
+
+    reward_stock = user_value.value - 1000
+
+    return jsonify(
+        {
+            "reward_stock": round(reward_stock, 2),
+            "exp_n": int((stage + 1)/2),
+            "loop_n": (stage - 1) % 2 + 1
+        }
+    )
+
+
+

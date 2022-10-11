@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_admin import Admin
 
 
 class CustomFlask(Flask):
@@ -18,4 +19,5 @@ app.jinja_env.lstrip_blocks = True
 
 db = SQLAlchemy(app)
 CORS(app)
+Admin(app, name='microblog', template_mode='bootstrap2')
 from behaveExp import views, commands
